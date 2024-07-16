@@ -1,37 +1,44 @@
 use clap::Parser;
 use std::collections::HashSet;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// The path to the file to read the input from
+    /// The path to the directory where the log files are located
     #[arg(short, long)]
-    input_path: String,
-    /// The path to the file to write the output to
-    #[arg(short, long)]
-    output_path: String,
+    directory_path: String,
 }
 
 fn main() {
-    let Args {
-        input_path,
-        output_path,
-    } = Args::parse();
+    let Args { directory_path } = Args::parse();
 
-    let file = File::open(input_path).expect("Failed to open input file");
-    let reader = BufReader::new(file);
+    let output_path = format!("{}/dead_code_analysis.txt", &directory_path);
+
+    let path = Path::new(&output_path);
+
+    if path.exists() {
+        fs::remove_file(path).expect("Could not delete the output file");
+    }
 
     let mut unique_lines = HashSet::new();
 
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            if let Some(pos) = line.find("[Dead Code Analysis]") {
-                let content = line[pos + "[Dead Code Analysis]".len()..]
-                    .trim()
-                    .to_string();
-                unique_lines.insert(content);
+    let paths = fs::read_dir(&directory_path).expect("could not read directory");
+
+    for path in paths {
+        let file = File::open(path.unwrap().path()).expect("Failed to open input file");
+        let reader = BufReader::new(file);
+
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                if let Some(pos) = line.find("[Dead Code Analysis]") {
+                    let content = line[pos + "[Dead Code Analysis]".len()..]
+                        .trim()
+                        .to_string();
+                    unique_lines.insert(content);
+                }
             }
         }
     }
