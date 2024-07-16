@@ -17,11 +17,11 @@ fn main() {
 
     let output_path = format!("{}/dead_code_analysis.txt", &directory_path);
 
-    let path = Path::new(&output_path);
+    delete_file(&output_path);
 
-    if path.exists() {
-        fs::remove_file(path).expect("Could not delete the output file");
-    }
+    let skiplist = get_skiplist(&directory_path);
+
+    println!("{:#?}", skiplist);
 
     let mut unique_lines = HashSet::new();
 
@@ -34,10 +34,12 @@ fn main() {
         for line in reader.lines() {
             if let Ok(line) = line {
                 if let Some(pos) = line.find("[Dead Code Analysis]") {
-                    let content = line[pos + "[Dead Code Analysis]".len()..]
+                    let dead_code_log = line[pos + "[Dead Code Analysis]".len()..]
                         .trim()
                         .to_string();
-                    unique_lines.insert(content);
+                    if !skip_dead_code_log(&dead_code_log, &skiplist) {
+                        unique_lines.insert(dead_code_log);
+                    }
                 }
             }
         }
@@ -50,6 +52,35 @@ fn main() {
     for line in unique_lines {
         writeln!(output, "[Dead Code Analysis] {}", line).expect("Failed to write to output file");
     }
+}
 
-    println!("Unique lines saved to {}", output_path);
+fn delete_file(path: &String) {
+    let path = Path::new(&path);
+
+    if path.exists() {
+        fs::remove_file(path).expect("Could not delete the output file");
+    }
+}
+
+fn get_skiplist(directory_path: &String) -> HashSet<String> {
+    let skiplist_path = format!("{}/skiplist.txt", &directory_path);
+    let file = File::open(skiplist_path).expect("Failed to open skiplist");
+    let reader = BufReader::new(file);
+    let mut skiplist = HashSet::new();
+
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            skiplist.insert(line);
+        }
+    }
+
+    skiplist
+}
+
+fn skip_dead_code_log(dead_code_log: &String, skiplist: &HashSet<String>) -> bool {
+    let file = dead_code_log
+        .split("'")
+        .nth(dead_code_log.split("'").count() - 2)
+        .expect("Could not get file from dead code log");
+    skiplist.contains(file)
 }
