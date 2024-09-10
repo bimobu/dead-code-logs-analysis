@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::collections::HashSet;
 use std::fs::{self, File};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 #[derive(Parser, Debug)]
@@ -21,9 +21,8 @@ fn main() {
 
     let skiplist = get_skiplist(&directory_path);
 
-    println!("{:#?}", skiplist);
-
     let mut unique_lines = HashSet::new();
+    let mut skipped_lines = HashSet::new();
 
     let paths = fs::read_dir(&directory_path).expect("could not read directory");
 
@@ -37,7 +36,9 @@ fn main() {
                     let dead_code_log = line[pos + "[Dead Code Analysis]".len()..]
                         .trim()
                         .to_string();
-                    if !skip_dead_code_log(&dead_code_log, &skiplist) {
+                    if skip_dead_code_log(&dead_code_log, &skiplist) {
+                        skipped_lines.insert(dead_code_log);
+                    } else {
                         unique_lines.insert(dead_code_log);
                     }
                 }
@@ -45,13 +46,22 @@ fn main() {
         }
     }
 
-    println!("{:#?}", unique_lines);
+    write_output_file(&output_path, unique_lines, skipped_lines)
+}
 
-    let mut output = File::create(&output_path).expect("Failed to create output file");
+fn write_output_file(
+    output_path: &String,
+    unique_lines: HashSet<String>,
+    skipped_lines: HashSet<String>,
+) {
+    let unique = Vec::from_iter(unique_lines).join("\n");
+    let skipped = Vec::from_iter(skipped_lines).join("\n");
 
-    for line in unique_lines {
-        writeln!(output, "[Dead Code Analysis] {}", line).expect("Failed to write to output file");
-    }
+    let content = format!("Unique Dead Code Logs:\n\n{unique}\n\nSkipped:\n\n{skipped}");
+
+    println!("\n{}\n", content);
+
+    fs::write(&output_path, content).expect("Could not write to file");
 }
 
 fn delete_file(path: &String) {
